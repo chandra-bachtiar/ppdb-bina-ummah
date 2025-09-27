@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  # ------------------
+  # Web Server / Reverse Proxy
+  # ------------------
+  traefik:
+    image: "traefik:v3.1" # <-- Disarankan pin versi
+    container_name: traefik
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.mytlschallenge.acme.tlschallenge=true"
+      - "--certificatesresolvers.mytlschallenge.acme.email=${EMAIL}" # Pastikan ada di .env
+      - "--certificatesresolvers.mytlschallenge.acme.storage=/letsencrypt/acme.json"
+      # Middleware global untuk redirect HTTP ke HTTPS
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "letsencrypt-data:/letsencrypt" # <-- Diperbaiki menggunakan volume bernama
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - webnet
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      # Router untuk Dashboard Traefik (sudah aman via HTTPS)
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${MAIN_DOMAIN}`)" # Pastikan ada di .env
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=mytlschallenge"
+      - "traefik.http.routers.dashboard.middlewares=auth"
+      # Middleware untuk otentikasi dashboard
+      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_AUTH}" # Pastikan ada di .env
+      # Middleware global untuk header keamanan
+      - "traefik.http.middlewares.secure-headers.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.secure-headers.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.secure-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.secure-headers.headers.stsPreload=true"
+      - "traefik.http.middlewares.secure-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.secure-headers.headers.browserXssFilter=true"
+
+  # ------------------
+  # Database
+  # ------------------
+  db:
+    image: postgres:16.3-alpine # Pin versi spesifik lebih baik
+    container_name: db_postgres
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: ${TZ}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - webnet
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ------------------
+  # Backend API
+  # ------------------
+  backend:
+    image: ghcr.io/chandra-bachtiar/pmb-backend:latest
+    container_name: backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DATABASE_HOST=db
+    depends_on:
+      db:
+        condition: service_healthy # Menunggu DB benar-benar siap
+    networks:
+      - webnet
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`backend.${MAIN_DOMAIN}`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=mytlschallenge"
+      - "traefik.http.routers.backend.middlewares=secure-headers" # Menerapkan header keamanan global
+      - "traefik.http.services.backend.loadbalancer.server.port=3000" # Asumsi backend berjalan di port 3000
+
+  # ------------------
+  # Frontend App
+  # ------------------
+  frontend:
+    image: ghcr.io/chandra-bachtiar/pmb-frontend:latest
+    container_name: frontend_app
+    networks:
+      - webnet
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`ppdb.${MAIN_DOMAIN}`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=mytlschallenge"
+      - "traefik.http.routers.frontend.middlewares=secure-headers" # Menerapkan header keamanan global
+      - "traefik.http.services.frontend.loadbalancer.server.port=80" # Asumsi frontend (nginx) berjalan di port 80
+
+# ------------------
+# Volumes & Networks
+# ------------------
+volumes:
+  postgres-data:
+    driver: local
+  letsencrypt-data:
+    driver: local
+
+networks:
+  webnet:
+    driver: bridge
