@@ -164,6 +164,8 @@ volumes:
     driver: local
   letsencrypt-data:
     driver: local
+  pgadmin-data:
+    driver: local
 
 networks:
   webnet:
