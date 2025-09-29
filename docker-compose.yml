@@ -126,6 +126,7 @@ services:
     command: --interval 300 --cleanup --label-enable
     restart: unless-stopped
     environment:
+      DOCKER_CONFIG: /config
       WATCHTOWER_NOTIFICATIONS: ${WATCHTOWER_NOTIFICATIONS}
       WATCHTOWER_NOTIFICATION_URL: ${WATCHTOWER_NOTIFICATION_URL}
 
