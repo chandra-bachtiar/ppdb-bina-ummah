@@ -125,7 +125,7 @@ services:
     command: --interval 300 --cleanup --label-enable
     restart: unless-stopped
     environment:
-      WATCHTOWER_NOTIFICATIONS: ${WATCHTOWER_NOTIFICATION_URL}
+      WATCHTOWER_NOTIFICATIONS: ${WATCHTOWER_NOTIFICATIONS}
       WATCHTOWER_NOTIFICATION_URL: ${WATCHTOWER_NOTIFICATION_URL}
 
   # ------------------
