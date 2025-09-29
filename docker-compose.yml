@@ -102,6 +102,8 @@ services:
     image: ghcr.io/chandra-bachtiar/pmb-frontend:latest
     pull_policy: always
     container_name: frontend_app
+    environment:
+      - VITE_API_BASE_URL=https://backend.${MAIN_DOMAIN}
     networks:
       - webnet
     restart: unless-stopped
