@@ -122,7 +122,7 @@ services:
     container_name: watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 300 --cleanup --label-enable
+    command: --interval 300 --cleanup --label-enable --registry-auth
     restart: unless-stopped
     environment:
       WATCHTOWER_NOTIFICATIONS: ${WATCHTOWER_NOTIFICATIONS}
