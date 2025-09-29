@@ -152,7 +152,7 @@ services:
       - "traefik.http.routers.pgadmin.rule=Host(`pgadmin.${MAIN_DOMAIN}`)"
       - "traefik.http.routers.pgadmin.entrypoints=websecure"
       - "traefik.http.routers.pgadmin.tls.certresolver=mytlschallenge"
-      - "traefik.http.routers.pgadmin.middlewares=secure-headers,auth"
+      - "traefik.http.routers.pgadmin.middlewares=secure-headers"
       - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
 
 
